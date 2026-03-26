@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Sistem Verkom Pendidikan PKH - Fix Nama Pendamping</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        body { font-family: 'Arial', sans-serif; font-size: 11px; margin: 20px; background-color: #f4f4f4; }
+        .container { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 1300px; margin: auto; }
+        .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; background: #fafafa; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .input-group { display: flex; flex-direction: column; gap: 5px; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        .header-title { text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 20px; text-decoration: underline; }
+        .meta-info { margin-bottom: 15px; font-weight: bold; line-height: 1.8; font-size: 12px; }
+        .table-container { overflow-x: auto; margin-bottom: 30px; }
+        table { border-collapse: collapse; width: 100%; table-layout: fixed; background: white; }
+        th, td { border: 1px solid black; padding: 4px 2px; text-align: center; font-size: 8px; overflow: hidden; }
+        th { background-color: #f2f2f2; }
+        .btn-pdf { background: #d32f2f; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; grid-column: span 2; font-size: 14px; }
+        .signature-preview { margin-top: 40px; display: flex; justify-content: space-between; padding: 0 60px; border-top: 1px dashed #ccc; padding-top: 20px; }
+        .sig-box { text-align: center; width: 280px; }
+        .spacer { height: 60px; border-bottom: 1px solid #000; margin-bottom: 5px; width: 80%; margin-left: auto; margin-right: auto; }
+        .name-bold { font-weight: bold; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="controls">
+        <div class="input-group">
+            <label>1. Pilih File CSV:</label>
+            <input type="file" id="csvFile" accept=".csv">
+        </div>
+        <div class="input-group">
+            <label>Nama Kepala Sekolah (Ttd):</label>
+            <input type="text" id="inputNamaKepala" placeholder="Nama..." oninput="updatePreview()">
+        </div>
+        <div class="input-group">
+            <label>NIP Kepala Sekolah (Ttd):</label>
+            <input type="text" id="inputNipKepala" placeholder="NIP..." oninput="updatePreview()">
+        </div>
+        <div class="input-group">
+            <label>Nama Pendamping (Hanya Ttd):</label>
+            <input type="text" id="inputNamaPendamping" placeholder="Nama untuk TTD..." oninput="updatePreview()">
+        </div>
+        <div class="input-group">
+            <label>NIP Pendamping (Ttd):</label>
+            <input type="text" id="inputNipPendamping" placeholder="NIP..." oninput="updatePreview()">
+        </div>
+        <div class="input-group">
+            <label>Jumlah Bulan:</label>
+            <select id="jmlBulan" onchange="updateTableStructure()">
+                <option value="1">1 Bulan</option>
+                <option value="2" selected>2 Bulan</option>
+                <option value="3">3 Bulan</option>
+            </select>
+        </div>
+        <button onclick="exportToPDF()" class="btn-pdf">DOWNLOAD PDF</button>
+    </div>
+
+    <div id="printArea">
+        <div class="header-title">FORM VERIFIKASI KOMITMEN PENDIDIKAN</div>
+        <div class="meta-info">
+            NPSN : &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; <span id="npsnVal">..........</span><br>
+            Nama Sekolah : &nbsp; <span id="sekolahVal">..........</span>
+        </div>
+
+        <div class="table-container">
+            <table id="verkomTable">
+                <thead id="tableHead"></thead>
+                <tbody id="tableBody"></tbody>
+            </table>
+        </div>
+
+        <div class="signature-preview">
+            <div class="sig-box">
+                Mengetahui,<br>Pihak Sekolah/Fasdik
+                <div class="spacer"></div>
+                <span id="prevNamaKepala" class="name-bold">...........................................</span><br>
+                NIP. <span id="prevNipKepala">...........................................</span>
+            </div>
+            <div class="sig-box">
+                <br>Pendamping Sosial
+                <div class="spacer"></div>
+                <span id="prevNamaPnd" class="name-bold">...........................................</span><br>
+                NIP. <span id="prevNipPnd">...........................................</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let rawData = [];
+
+    function updatePreview() {
+        document.getElementById('prevNamaKepala').innerText = document.getElementById('inputNamaKepala').value || "...........................................";
+        document.getElementById('prevNipKepala').innerText = document.getElementById('inputNipKepala').value || "...........................................";
+        document.getElementById('prevNamaPnd').innerText = document.getElementById('inputNamaPendamping').value || "...........................................";
+        document.getElementById('prevNipPnd').innerText = document.getElementById('inputNipPendamping').value || "...........................................";
+    }
+
+    function updateTableStructure() {
+        const jml = parseInt(document.getElementById('jmlBulan').value);
+        const head = document.getElementById('tableHead');
+        const bulanNames = ["FEBRUARI", "MARET", "APRIL"]; 
+        
+        let h1 = `<tr><th rowspan="3" style="width:25px">NO</th><th rowspan="3">NAMA PENGURUS</th><th rowspan="3" style="width:70px">NISN</th><th rowspan="3">NAMA SISWA</th><th rowspan="3" style="width:40px">BENTUK</th><th rowspan="3" style="width:40px">TINGKAT</th>`;
+        for(let i=0; i<jml; i++) { h1 += `<th colspan="3">${bulanNames[i]}</th>`; }
+        h1 += `<th rowspan="3" style="width:50px">JUMLAH KEHADIRAN %</th><th rowspan="3" style="width:50px">KOMITMEN/ TIDAK</th><th rowspan="3" style="width:40px">KET</th><th rowspan="3">NAMA PENDAMPING</th></tr>`;
+
+        let h2 = `<tr>`;
+        for(let i=0; i<jml; i++) { h2 += `<th colspan="3">Hari Efektif:</th>`; }
+        h2 += `</tr><tr>`;
+        for(let i=0; i<jml; i++) { h2 += `<th>Alpa</th><th>Izin</th><th>Sakit</th>`; }
+        h2 += `</tr>`;
+        
+        head.innerHTML = h1 + h2;
+        if(rawData.length > 0) renderTable(rawData);
+    }
+
+    document.getElementById('csvFile').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, {type: 'array'});
+            const csvRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+
+            document.getElementById('npsnVal').innerText = (csvRows[1] ? String(csvRows[1][1]) : '').replace(':', '').trim();
+            document.getElementById('sekolahVal').innerText = (csvRows[2] ? String(csvRows[2][1]) : '').replace(':', '').trim();
+
+            rawData = csvRows.filter(row => !isNaN(row[0]) && row[0] !== null && row[0] !== "" && row[0] !== "NO");
+            renderTable(rawData);
+        };
+        reader.readAsArrayBuffer(file);
+    });
+
+    function renderTable(rows) {
+        const body = document.getElementById('tableBody');
+        const jmlBulan = parseInt(document.getElementById('jmlBulan').value);
+        body.innerHTML = "";
+        
+        rows.forEach(row => {
+            const tr = document.createElement('tr');
+            const map = [0, 2, 4, 5, 6, 7];
+            map.forEach(idx => {
+                const td = document.createElement('td');
+                td.textContent = row[idx] || "";
+                tr.appendChild(td);
+            });
+
+            for(let i=0; i < (jmlBulan * 3); i++) tr.appendChild(document.createElement('td'));
+            tr.appendChild(document.createElement('td')); 
+            tr.appendChild(document.createElement('td')); 
+
+            const tdKet = document.createElement('td');
+            tdKet.textContent = row[18] || "";
+            tr.appendChild(tdKet);
+
+            // PERBAIKAN: Mengambil kolom terakhir secara dinamis
+            const tdPnd = document.createElement('td');
+            // Menghapus karakter pembersih seperti tanda kutip (') atau (")
+            let namaDariFile = row[row.length - 1] ? String(row[row.length - 1]).replace(/['"]/g, '') : "";
+            tdPnd.textContent = namaDariFile;
+            tr.appendChild(tdPnd);
+            
+            body.appendChild(tr);
+        });
+    }
+
+    function exportToPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('l', 'mm', 'a4');
+        const nKepala = document.getElementById('inputNamaKepala').value || "...........................................";
+        const nipKepala = document.getElementById('inputNipKepala').value || "...........................................";
+        const nPnd = document.getElementById('inputNamaPendamping').value || "...........................................";
+        const nipPnd = document.getElementById('inputNipPendamping').value || "...........................................";
+
+        doc.setFontSize(11);
+        doc.text("FORM VERIFIKASI KOMITMEN PENDIDIKAN", 148, 15, { align: "center" });
+        doc.setFontSize(9);
+        doc.text(`NPSN              : ${document.getElementById('npsnVal').innerText}`, 14, 25);
+        doc.text(`Nama Sekolah  : ${document.getElementById('sekolahVal').innerText}`, 14, 30);
+
+        doc.autoTable({
+            html: '#verkomTable',
+            startY: 35,
+            theme: 'grid',
+            styles: { fontSize: 5.5, cellPadding: 0.8, lineColor: 0, lineWidth: 0.1 },
+            headStyles: { fillGray: 240, halign: 'center', fontStyle: 'bold' },
+            margin: { bottom: 45 }
+        });
+
+        const totalPages = doc.internal.getNumberOfPages();
+        doc.setPage(totalPages);
+        let finalY = doc.lastAutoTable.finalY + 10;
+        if (finalY > 160) { doc.addPage(); finalY = 25; }
+
+        doc.setFontSize(9);
+        doc.text("Mengetahui,", 40, finalY);
+        doc.text("Pihak Sekolah/Fasdik", 40, finalY + 5);
+        doc.setFont(undefined, 'bold');
+        doc.text(nKepala.toUpperCase(), 40, finalY + 25);
+        doc.setFont(undefined, 'normal');
+        doc.text(`NIP. ${nipKepala}`, 40, finalY + 30);
+
+        doc.text("Pendamping Sosial", 220, finalY + 5);
+        doc.setFont(undefined, 'bold');
+        doc.text(nPnd.toUpperCase(), 220, finalY + 25);
+        doc.setFont(undefined, 'normal');
+        doc.text(`NIP. ${nipPnd}`, 220, finalY + 30);
+
+        doc.save("Verkom_Pendidikan_Final.pdf");
+    }
+
+    updateTableStructure();
+</script>
+
+</body>
+</html>
