@@ -140,8 +140,8 @@
             const workbook = XLSX.read(data, {type: 'array'});
             const csvRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
 
-            document.getElementById('npsnVal').innerText = (csvRows[2] ? String(csvRows[2][1]) : '').replace(':', '').trim();
-            document.getElementById('sekolahVal').innerText = (csvRows[3] ? String(csvRows[3][1]) : '').replace(':', '').trim();
+            document.getElementById('npsnVal').innerText = (csvRows[1] ? String(csvRows[1][1]) : '').replace(':', '').trim();
+            document.getElementById('sekolahVal').innerText = (csvRows[2] ? String(csvRows[2][1]) : '').replace(':', '').trim();
 
             rawData = csvRows.filter(row => !isNaN(row[0]) && row[0] !== null && row[0] !== "" && row[0] !== "NO");
             renderTable(rawData);
