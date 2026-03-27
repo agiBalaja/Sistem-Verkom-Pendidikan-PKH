@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <title>Sistem Verkom Pendidikan PKH - Input Bulan Dinamis</title>
+    <title>Sistem Verkom Pendidikan PKH - Full Dinamis</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
@@ -35,6 +35,14 @@
             <input type="file" id="csvFile" accept=".csv">
         </div>
         <div class="input-group">
+            <label>Tempat (Lokasi):</label>
+            <input type="text" id="inputTempat" placeholder="Contoh: Pelepat Lintas" oninput="updatePreview()">
+        </div>
+        <div class="input-group">
+            <label>Tanggal Cetak:</label>
+            <input type="text" id="inputTanggal" oninput="updatePreview()">
+        </div>
+        <div class="input-group">
             <label>Nama Kepala Sekolah (Ttd):</label>
             <input type="text" id="inputNamaKepala" placeholder="Nama..." oninput="updatePreview()">
         </div>
@@ -50,9 +58,9 @@
             <label>NIP Pendamping (Ttd):</label>
             <input type="text" id="inputNipPendamping" placeholder="NIP..." oninput="updatePreview()">
         </div>
-        <div class="input-group" style="grid-column: span 1;">
-            <label>Nama Bulan (Pisahkan dengan Koma):</label>
-            <input type="text" id="inputNamaBulan" value="FEBRUARI, MARET" placeholder="Contoh: JANUARI, FEBRUARI" oninput="updateTableStructure()">
+        <div class="input-group">
+            <label>Nama Bulan (Pisahkan Koma):</label>
+            <input type="text" id="inputNamaBulan" value="FEBRUARI, MARET" oninput="updateTableStructure()">
         </div>
         <div class="input-group">
             <label>Jumlah Bulan:</label>
@@ -62,7 +70,7 @@
                 <option value="3">3 Bulan</option>
             </select>
         </div>
-        <button onclick="exportToPDF()" class="btn-pdf">DOWNLOAD PDF</button>
+        <button onclick="exportToPDF()" class="btn-pdf">DOWNLOAD PDF (TTD DI HALAMAN AKHIR)</button>
     </div>
 
     <div id="printArea">
@@ -81,13 +89,14 @@
 
         <div class="signature-preview">
             <div class="sig-box">
-                Mengetahui,<br>Pihak Sekolah/Fasdik
+                <br>Mengetahui,<br>Pihak Sekolah/Fasdik
                 <div class="spacer"></div>
                 <span id="prevNamaKepala" class="name-bold">...........................................</span><br>
                 NIP. <span id="prevNipKepala">...........................................</span>
             </div>
             <div class="sig-box">
-                <br>Pendamping Sosial
+                <span id="prevTempatTanggal">........, .......... 202X</span><br>
+                Pendamping Sosial
                 <div class="spacer"></div>
                 <span id="prevNamaPnd" class="name-bold">...........................................</span><br>
                 NIP. <span id="prevNipPnd">...........................................</span>
@@ -99,7 +108,21 @@
 <script>
     let rawData = [];
 
+    // Fungsi mendapatkan tanggal hari ini format Indonesia
+    function getTodayDate() {
+        const date = new Date();
+        const months = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+        return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
+    }
+
+    // Set default tanggal saat halaman dimuat
+    document.getElementById('inputTanggal').value = getTodayDate();
+
     function updatePreview() {
+        const tempat = document.getElementById('inputTempat').value || "........";
+        const tanggal = document.getElementById('inputTanggal').value || "..........";
+        
+        document.getElementById('prevTempatTanggal').innerText = `${tempat}, ${tanggal}`;
         document.getElementById('prevNamaKepala').innerText = document.getElementById('inputNamaKepala').value || "...........................................";
         document.getElementById('prevNipKepala').innerText = document.getElementById('inputNipKepala').value || "...........................................";
         document.getElementById('prevNamaPnd').innerText = document.getElementById('inputNamaPendamping').value || "...........................................";
@@ -109,17 +132,14 @@
     function updateTableStructure() {
         const jml = parseInt(document.getElementById('jmlBulan').value);
         const bulanInput = document.getElementById('inputNamaBulan').value;
-        // Memecah input bulan berdasarkan koma
         const bulanArr = bulanInput.split(',').map(b => b.trim());
         const head = document.getElementById('tableHead');
         
         let h1 = `<tr><th rowspan="3" style="width:25px">NO</th><th rowspan="3">NAMA PENGURUS</th><th rowspan="3" style="width:70px">NISN</th><th rowspan="3">NAMA SISWA</th><th rowspan="3" style="width:40px">BENTUK</th><th rowspan="3" style="width:40px">TINGKAT</th>`;
-        
         for(let i=0; i<jml; i++) { 
             let namaBulan = (bulanArr[i] || "BULAN " + (i+1)).toUpperCase();
             h1 += `<th colspan="3">${namaBulan}</th>`; 
         }
-        
         h1 += `<th rowspan="3" style="width:50px">JUMLAH KEHADIRAN %</th><th rowspan="3" style="width:50px">KOMITMEN/ TIDAK</th><th rowspan="3" style="width:40px">KET</th><th rowspan="3">NAMA PENDAMPING</th></tr>`;
 
         let h2 = `<tr>`;
@@ -183,6 +203,9 @@
     function exportToPDF() {
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF('l', 'mm', 'a4');
+        
+        const tempat = document.getElementById('inputTempat').value || "........";
+        const tanggal = document.getElementById('inputTanggal').value || "..........";
         const nKepala = document.getElementById('inputNamaKepala').value || "...........................................";
         const nipKepala = document.getElementById('inputNipKepala').value || "...........................................";
         const nPnd = document.getElementById('inputNamaPendamping').value || "...........................................";
@@ -209,23 +232,28 @@
         if (finalY > 160) { doc.addPage(); finalY = 25; }
 
         doc.setFontSize(9);
-        doc.text("Mengetahui,", 40, finalY);
-        doc.text("Pihak Sekolah/Fasdik", 40, finalY + 5);
+        // Tanda Tangan Kiri (Sekolah)
+        doc.text("Mengetahui,", 40, finalY + 5);
+        doc.text("Pihak Sekolah/Fasdik", 40, finalY + 10);
         doc.setFont(undefined, 'bold');
-        doc.text(nKepala.toUpperCase(), 40, finalY + 25);
+        doc.text(nKepala.toUpperCase(), 40, finalY + 30);
         doc.setFont(undefined, 'normal');
-        doc.text(`NIP. ${nipKepala}`, 40, finalY + 30);
+        doc.text(`NIP. ${nipKepala}`, 40, finalY + 35);
 
-        doc.text("Pendamping Sosial", 220, finalY + 5);
+        // Tanda Tangan Kanan (Pendamping)
+        doc.text(`${tempat}, ${tanggal}`, 220, finalY + 5);
+        doc.text("Pendamping Sosial", 220, finalY + 10);
         doc.setFont(undefined, 'bold');
-        doc.text(nPnd.toUpperCase(), 220, finalY + 25);
+        doc.text(nPnd.toUpperCase(), 220, finalY + 30);
         doc.setFont(undefined, 'normal');
-        doc.text(`NIP. ${nipPnd}`, 220, finalY + 30);
+        doc.text(`NIP. ${nipPnd}`, 220, finalY + 35);
 
-        doc.save("Verkom_Pendidikan_Final.pdf");
+        doc.save("Verkom_Pendidikan_Lengkap.pdf");
     }
 
+    // Inisialisasi awal
     updateTableStructure();
+    updatePreview();
 </script>
 
 </body>
